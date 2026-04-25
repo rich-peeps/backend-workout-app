@@ -6,3 +6,4 @@ from models import db
 with app.app_context():
     # Clear + seed data later
     pass
+
