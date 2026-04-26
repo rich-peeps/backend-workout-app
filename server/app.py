@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, make_response
 from flask_migrate import Migrate
-from marshmallow import ValidationError 
+from marshmallow import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from models import (
     db,
@@ -49,14 +50,20 @@ def get_workout(id):
 @app.route("/workouts", methods=["POST"])
 def create_workout():
     data = request.get_json() or {}
+
     try:
         valid = workout_schema.load(data)
     except ValidationError as err:
         return jsonify({"errors": err.messages}), 400
 
-    workout = Workout(**valid)
-    db.session.add(workout)
-    db.session.commit()
+    try:
+        workout = Workout(**valid)
+        db.session.add(workout)
+        db.session.commit()
+    except ValueError as ve:
+        db.session.rollback()
+        return jsonify({"errors": {"workout": [str(ve)]}}), 400
+
     return jsonify(workout_schema.dump(workout)), 201
 
 
@@ -87,14 +94,23 @@ def get_exercise(id):
 @app.route("/exercises", methods=["POST"])
 def create_exercise():
     data = request.get_json() or {}
+
     try:
         valid = exercise_schema.load(data)
     except ValidationError as err:
         return jsonify({"errors": err.messages}), 400
 
-    exercise = Exercise(**valid)
-    db.session.add(exercise)
-    db.session.commit()
+    try:
+        exercise = Exercise(**valid)
+        db.session.add(exercise)
+        db.session.commit()
+    except ValueError as ve:
+        db.session.rollback()
+        return jsonify({"errors": {"name": [str(ve)]}}), 400
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"errors": {"name": ["Exercise name must be unique."]}}), 400
+
     return jsonify(exercise_schema.dump(exercise)), 201
 
 
